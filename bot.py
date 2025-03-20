@@ -1,101 +1,63 @@
-import asyncio
-import requests  # Required for sending messages to Telegram
+import requests
+import time
+from datetime import datetime
 import os
+
+# ✅ Fix for Windows event loop issue
 if os.name == 'nt':
+    import asyncio
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-import pandas as pd
-import numpy as np
-import telegram
-import time
-from binance.client import Client
-from binance import ThreadedWebsocketManager
-from datetime import datetime
+# ✅ Telegram Bot Credentials
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Use environment variables
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# Binance API (for public data, API keys are not strictly required)
-BINANCE_SYMBOL = "BTCUSDT"
-client = Client()  # For public endpoints; add your keys if needed
-
-# === Option 1: Use environment variables ===
-# BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-# CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-# === Option 2: Hardcode values (for testing only) ===
-BOT_TOKEN = "8021146799:AAFYJR3G72OS3Xk_kmA79aG1XZdiudcLLDs"   # Replace with your token
-CHAT_ID = "6419058496"                 # Replace with your chat ID
-
-if not BOT_TOKEN or not CHAT_ID:
-    raise ValueError("Missing Telegram BOT_TOKEN or CHAT_ID environment variables.")
-
-bot = telegram.Bot(token=BOT_TOKEN)
-
-# ✅ Store live data
-live_data = []
-
-def process_message(msg):
-    """Process Binance real-time ticker messages and send updates to Telegram."""
-    global live_data
-
-    if 'p' not in msg or 'T' not in msg:
-        return  # Ignore messages that don't have price data
-
-    price = float(msg['p'])  # Trade price
-    timestamp = datetime.utcfromtimestamp(msg['T'] / 1000)  # Convert ms to seconds
-
-    print(f"📊 Received data - Price: {price}, Time: {timestamp}")  # Debugging
-
-    # Append latest price data
-    live_data.append({"timestamp": timestamp, "price": price})
-    if len(live_data) > 50:
-        live_data.pop(0)  # Keep last 50 records
-
-    # Send price update to Telegram
-    message = f"📊 BTCUSDT Update: ${price:.2f} at {timestamp}"
-    bot.send_message(chat_id=CHAT_ID, text=message)
-
-    # Check for breakout signals
-    check_trading_signal()
-
-def check_trading_signal():
-    """Analyze price data and send alerts if a breakout occurs."""
-    if len(live_data) < 20:
-        return
+# ✅ Function to send messages to Telegram
+def send_telegram_message(message):
+    TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    params = {"chat_id": CHAT_ID, "text": message}
+    response = requests.post(TELEGRAM_API_URL, params=params)
     
-    df = pd.DataFrame(live_data)
-    df['support'] = df['price'].rolling(window=10).min()
-    df['resistance'] = df['price'].rolling(window=10).max()
+    if response.status_code == 200:
+        print("📩 Telegram Alert Sent!")
+    else:
+        print(f"❌ Failed to send Telegram message: {response.text}")
 
-    current_price = df['price'].iloc[-1]
-    prev_resistance = df['resistance'].iloc[-2]
-    prev_support = df['support'].iloc[-2]
+# ✅ Fetch BTC price using CoinGecko API
+def get_binance_price():
+    url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+    response = requests.get(url).json()
+    return response['bitcoin']['usd']
 
-    print(f"🔍 Checking signals - Current Price: {current_price}, Resistance: {prev_resistance}, Support: {prev_support}")
+# ✅ Main function to monitor price
+def start_monitoring():
+    print("✅ Script started. Monitoring BTC price...")
 
-    if current_price > prev_resistance:
-        message = f"🚀 Breakout Alert! BTC Above Resistance: ${current_price:.2f}"
-        print(f"✅ Sending Telegram Alert: {message}")
-        bot.send_message(chat_id=CHAT_ID, text=message)
-    
-    elif current_price < prev_support:
-        message = f"⚠️ Breakdown Alert! BTC Below Support: ${current_price:.2f}"
-        print(f"✅ Sending Telegram Alert: {message}")
-        bot.send_message(chat_id=CHAT_ID, text=message)
+    last_price = None  # Store last price for comparison
 
-def start_stream():
-    """Starts the Binance WebSocket stream using ThreadedWebsocketManager."""
-    print("✅ Script started. Connecting to Binance WebSocket...")
+    while True:
+        try:
+            current_price = get_binance_price()
+            timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
-    # ✅ No API key needed for public WebSocket
-    twm = ThreadedWebsocketManager()
-    twm.start()
-    twm.start_symbol_ticker_socket(callback=process_message, symbol=BINANCE_SYMBOL)
+            print(f"📊 BTC Price: ${current_price} at {timestamp}")
 
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("❌ Stopping stream...")
-        twm.stop()
+            # ✅ Send update every 1 minute
+            message = f"📊 BTC Price Update: ${current_price} at {timestamp}"
+            send_telegram_message(message)
 
-# ✅ Start the WebSocket stream
-start_stream()
+            # ✅ Check for price changes
+            if last_price and abs(current_price - last_price) >= 50:  # Adjust threshold if needed
+                alert_msg = f"🚨 Price Alert! BTC moved by ${current_price - last_price:.2f}!"
+                send_telegram_message(alert_msg)
+
+            last_price = current_price  # Update last price
+
+            time.sleep(60)  # ✅ Wait 1 minute before checking again
+
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            time.sleep(10)  # Wait before retrying
+
+# ✅ Start the monitoring function
+start_monitoring()
