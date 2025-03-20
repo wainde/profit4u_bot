@@ -9,8 +9,8 @@ if os.name == 'nt':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # ✅ Telegram Bot Credentials
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Use environment variables
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+BOT_TOKEN = os.getenv("8021146799:AAFYJR3G72OS3Xk_kmA79aG1XZdiudcLLDs")  # Use environment variables
+CHAT_ID = os.getenv("6419058496")
 
 # ✅ Function to send messages to Telegram
 def send_telegram_message(message):
