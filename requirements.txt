@@ -1,4 +1,5 @@
 requests
+python-telegram-bot
+binance-connector
 pandas
-python-binance
-aiohttp
+numpy
