@@ -3,3 +3,4 @@ python-telegram-bot
 binance-connector
 pandas
 numpy
+python-binance
