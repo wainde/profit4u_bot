@@ -5,8 +5,8 @@ import time
 from datetime import datetime
 
 # ✅ Telegram Bot Details
-BOT_TOKEN = "8021146799:AAFYJR3G72OS3Xk_kmA79aG1XZdiudcLLDs"  # Replace with your token
-CHAT_ID = "6419058496"
+BOT_TOKEN = "8021146799:"  # Replace with your token
+CHAT_ID = ""
 
 
 def send_telegram_message(message):
